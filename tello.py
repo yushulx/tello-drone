@@ -3,10 +3,11 @@ import threading
 import time
 import numpy as np
 import h264decoder
+from dbr import *
+import cv2
 
 class Tello:
     """Wrapper class to interact with the Tello drone."""
-
     def __init__(self, local_ip, local_port, imperial=False, command_timeout=.3, tello_ip='192.168.10.1',
                  tello_port=8889):
         """
@@ -20,6 +21,23 @@ class Tello:
         :param tello_ip (str): Tello IP.
         :param tello_port (int): Tello port.
         """
+
+        ## Initialize Dynamsoft Barcode Reader
+        self.reader = BarcodeReader()
+        self.reader.init_license('LICENSE-KEY') # Apply for a trial license: https://www.dynamsoft.com/customer/license/trialLicense
+        parameters = self.reader.init_frame_decoding_parameters()
+        # you can modify these following parameters.
+        self.frameWidth = 640 # max: 960
+        self.frameHeight = 480 # max: 720
+        self.results = None
+        parameters.image_pixel_format = EnumImagePixelFormat.IPF_RGB_888
+        parameters.max_queue_length = 2
+        parameters.max_result_queue_length = 2
+        parameters.width = self.frameWidth
+        parameters.height = self.frameHeight
+        parameters.stride = self.frameWidth * 3
+        parameters.auto_filter = 1
+        self.reader.start_video_mode(parameters, self.on_barcode_result)
 
         self.abort_flag = False
         self.decoder = h264decoder.H264Decoder()
@@ -58,16 +76,22 @@ class Tello:
 
     def __del__(self):
         """Closes the local socket."""
-
+        self.reader.stop_video_mode()
         self.socket.close()
         self.socket_video.close()
+
+    def on_barcode_result(self, data):
+        self.results = data
     
+    def clear_results(self):
+        self.results = None
+
     def read(self):
         """Return the last frame from camera."""
         if self.is_freeze:
-            return self.last_frame
+            return self.last_frame, self.results
         else:
-            return self.frame
+            return self.frame, self.results
 
     def video_freeze(self, is_freeze=True):
         """Pause video output -- set is_freeze to True"""
@@ -103,7 +127,14 @@ class Tello:
                 # end of frame
                 if len(res_string) != 1460:
                     for frame in self._h264_decode(packet_data):
-                        self.frame = frame
+                        self.frame = cv2.resize(frame, (self.frameWidth, self.frameHeight))
+
+                        # Append frames to dbr video API
+                        try:
+                            ret = self.reader.append_video_frame(self.frame)
+                        except:
+                            pass
+                    
                     packet_data = bytes()
 
             except socket.error as exc:

@@ -8,6 +8,7 @@ import cv2
 import os
 import time
 import platform
+from dbr import *
 
 class TelloUI:
     """Wrapper class to enable the GUI."""
@@ -25,6 +26,7 @@ class TelloUI:
         self.tello = tello # videostream device
         self.outputPath = outputpath # the path that save pictures created by clicking the takeSnapshot button 
         self.frame = None  # frame read from h264decoder and used for pose recognition 
+        self.results = None
         self.thread = None # thread of the tkinter mainloop
         self.stopEvent = None  
         
@@ -66,6 +68,8 @@ class TelloUI:
 
         # the sending_command will send command to tello every 5 seconds
         # self.sending_command_thread = threading.Thread(target = self._sendingCommand)
+        self.count = 0
+
     def videoLoop(self):
         """
         The mainloop thread of tkinter 
@@ -80,11 +84,40 @@ class TelloUI:
                 system = platform.system()
 
             # read the frame for GUI show
-                self.frame = self.tello.read()
+                self.frame, self.results = self.tello.read()
                 if self.frame is None or self.frame.size == 0:
                     continue 
             
-            # transfer the format from frame to image         
+            # transfer the format from frame to image   
+                # Draw barcode results to frame
+                thickness = 1
+                color = (0,255,0) 
+                
+                if self.results != None:
+                    self.count += 1
+                    for result in self.results:
+                        text_result = TextResult(result)
+                        print("Barcode Format :")
+                        print(text_result.barcode_format_string)
+                        print("Barcode Text :")
+                        print(text_result.barcode_text)
+                        print("Localization Points : ")
+                        print(text_result.localization_result.localization_points)
+                        print("-------------")
+
+                        points = text_result.localization_result.localization_points
+
+                        cv2.line(self.frame, points[0], points[1], color, thickness)
+                        cv2.line(self.frame, points[1], points[2], color, thickness)
+                        cv2.line(self.frame, points[2], points[3], color, thickness)
+                        cv2.line(self.frame, points[3], points[0], color, thickness)
+                        cv2.putText(self.frame, text_result.barcode_text, points[0], cv2.FONT_HERSHEY_SIMPLEX, 0.5, color)
+
+                    # Clear old barcode results per 10 frames
+                    if self.count == 10:
+                        self.count = 0 
+                        self.tello.clear_results()
+
                 image = Image.fromarray(self.frame)
 
             # we found compatibility problem between tkinter,PIL and Macos,and it will 
@@ -239,10 +272,10 @@ class TelloUI:
         ts = datetime.datetime.now()
         filename = "{}.jpg".format(ts.strftime("%Y-%m-%d_%H-%M-%S"))
 
-        p = os.path.sep.join((self.outputPath, filename))
+        # p = os.path.sep.join((self.outputPath, filename))
 
         # save the file
-        cv2.imwrite(p, cv2.cvtColor(self.frame, cv2.COLOR_RGB2BGR))
+        cv2.imwrite(filename, cv2.cvtColor(self.frame, cv2.COLOR_RGB2BGR))
         print("[INFO] saved {}".format(filename))
 
 
