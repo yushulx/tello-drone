@@ -25,7 +25,7 @@ Run the GUI app:
 python main.py
 ```
 
-![Tello drone barcode scanning](https://www.dynamsoft.com/codepool/wp-content/uploads/2020/11/tello-drone-barcode.png)
+![Tello drone barcode scanning](https://www.dynamsoft.com/codepool/wp-content/uploads/2020/12/tello-drone-barcode.png)
 
 ## Blog
 [How to Make Tello Drone Capable of Barcode Scanning through Python](https://www.dynamsoft.com/codepool/dji-tello-drone-barcode-scanning-py.html)
